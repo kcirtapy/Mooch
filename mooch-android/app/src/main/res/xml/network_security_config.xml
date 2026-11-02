@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  The laptop serves plain HTTP, and Android has blocked cleartext by default
+  since API 28.
+
+  Scoping this to "just my LAN" isn't possible: <domain> matches hostnames, not
+  IP ranges, so there's no way to express 192.168.0.0/16 here. Since the server
+  address is whatever you type into Settings, cleartext is allowed outright.
+
+  That's an acceptable trade for a personal app talking to your own laptop. If
+  you ever point this at something reachable from the open internet, put it
+  behind HTTPS (a Tailscale funnel or a reverse proxy) and flip this to false.
+-->
+<network-security-config>
+    <base-config cleartextTrafficPermitted="true" />
+</network-security-config>

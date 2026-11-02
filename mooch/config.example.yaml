@@ -1,0 +1,100 @@
+# Mooch configuration.
+# Copy to config.yaml and edit. Secrets live in .env, never here.
+
+timezone: America/New_York
+
+# Only surface events starting within this many days.
+lookahead_days: 14
+
+# Drop verdicts the model is less sure about than this (0.0 - 1.0).
+confidence_threshold: 0.55
+
+# Where the SQLite database, HTML report and events.json get written.
+# On Windows this resolves to C:\Users\<you>\.mooch
+data_dir: ~/.mooch
+
+anthropic:
+  model: claude-haiku-4-5-20251001
+  max_concurrency: 4
+  # Items longer than this get truncated before classification.
+  max_chars: 4000
+
+# ---------------------------------------------------------------------------
+# JumboLife — Tufts' events calendar, powered by CampusGroups.
+#
+# Nothing to configure. The campus-wide iCalendar feed below is public and
+# carries every group's public events. This is on by default because it costs
+# you no setup at all.
+#
+# Optional upgrade: sign in to JumboLife, open Events -> Subscribe, star the
+# groups you care about, and copy "Your Personal Feed of Events". That feed
+# also includes members-only events for groups you belong to, which the public
+# feed leaves out. Add it as a second entry below; Mooch reads every feed listed
+# and deduplicates across them.
+# ---------------------------------------------------------------------------
+jumbolife:
+  enabled: true
+  feeds:
+    - https://tufts.campusgroups.com/ical/tufts/ical_tufts.ics
+  # Sent with every request. You shouldn't need this for the public feed.
+  headers: {}
+
+# ---------------------------------------------------------------------------
+# Newsletters over IMAP.
+# Password goes in .env as MOOCH_IMAP_PASSWORD (a Gmail App Password).
+# ---------------------------------------------------------------------------
+email:
+  enabled: false
+  host: imap.gmail.com
+  port: 993
+  user: "you@gmail.com"
+  # Gmail labels are exposed as IMAP folders. A nested label "clubs/mooch"
+  # is the folder "clubs/mooch".
+  folder: "mooch"
+  max_messages_per_run: 60
+
+# ---------------------------------------------------------------------------
+# Instagram. Password goes in .env as MOOCH_IG_PASSWORD.
+# Run `mooch ig-login` once to create the session file, then the password
+# is only needed again if the session dies.
+# ---------------------------------------------------------------------------
+instagram:
+  enabled: false
+  username: "your_burner_handle"
+  session_file: ~/.mooch/ig_session.json
+  max_items_per_run: 60
+
+  # Random pause between requests, in seconds.
+  delay_range: [3, 9]
+
+  # How far to scroll the home feed each run. A page is 5-10 posts. Scrolling
+  # stops early at Instagram's "You're all caught up" marker, or at a page with
+  # nothing new, so this is a ceiling, not a target.
+  timeline_pages: 5
+
+  # Ignore posts older than this. Anything older has almost certainly been
+  # seen already, or is about an event that's over.
+  max_post_age_days: 10
+
+  # Skip runs outside these local hours. A feed that gets read around the clock
+  # looks like exactly what it is.
+  active_hours: [8, 23]
+
+  # Fallback only. If the timeline feed stops working, list handles here and
+  # Mooch will fetch them one at a time instead. Much higher ban risk --
+  # leave empty unless the timeline path has broken.
+  poll_usernames: []
+
+# ---------------------------------------------------------------------------
+# Server for the Android app. `mooch serve` runs the pipeline on a timer and
+# serves the results at /api/events.json.
+# ---------------------------------------------------------------------------
+server:
+  host: 0.0.0.0 # 0.0.0.0 listens on wifi and Tailscale; 127.0.0.1 is local-only
+  port: 8765
+  # Clubs register events days ahead, so there is nothing to gain from
+  # checking more often than this.
+  interval_minutes: 180
+  # Shared secret the app sends as a Bearer token. Generate one with:
+  #   python -c "import secrets; print(secrets.token_urlsafe(18))"
+  token: ""

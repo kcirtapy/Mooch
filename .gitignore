@@ -1,0 +1,40 @@
+# --- Secrets and personal settings: never commit these ----------------------
+# .env holds the Anthropic key, Gmail app password and Instagram password.
+# config.yaml holds your Gmail address, burner handle and server token.
+# Commit the *.example versions instead.
+.env
+config.yaml
+ig_session.json
+*.keystore
+*.jks
+
+# --- Data Mooch writes at runtime ----------------------------------------------
+*.db
+report.html
+events.json
+
+# --- Python --------------------------------------------------------------------
+.venv/
+venv/
+__pycache__/
+*.py[cod]
+*.egg-info/
+dist/
+
+# --- Android / Gradle / Android Studio -----------------------------------------
+.gradle/
+.kotlin/
+.idea/
+build/
+local.properties
+*.iml
+captures/
+.cxx/
+.externalNativeBuild/
+*.apk
+*.aab
+
+# --- OS clutter ------------------------------------------------------------------
+.DS_Store
+Thumbs.db
+desktop.ini

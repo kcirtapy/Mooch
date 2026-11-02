@@ -1,0 +1,10 @@
+# Store text with LF line endings; Git converts on checkout as your platform expects.
+* text=auto
+
+# Windows batch files must keep CRLF line endings, or cmd.exe can misread them.
+*.bat text eol=crlf
+
+# Never touch binaries.
+*.png binary
+*.jpg binary
+*.jar binary

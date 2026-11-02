@@ -1,0 +1,16 @@
+# Secrets and local state
+.env
+config.yaml
+*.db
+ig_session.json
+report.html
+events.json
+
+# Python
+__pycache__/
+*.pyc
+.venv/
+venv/
+*.egg-info/
+build/
+dist/

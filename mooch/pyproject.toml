@@ -1,0 +1,32 @@
+[project]
+name = "mooch"
+version = "0.1.0"
+description = "Finds free food at Tufts student club events."
+requires-python = ">=3.11"
+
+# instagrapi is deliberately not here. It pulls a large dependency tree that
+# occasionally needs a C compiler on Windows, and it is only imported when the
+# Instagram source actually runs -- so JumboLife and newsletters work without
+# it. Install it when you get to that step:  pip install -e ".[instagram]"
+dependencies = [
+    "anthropic>=0.40.0",
+    "requests>=2.32.0",
+    "PyYAML>=6.0",
+    "python-dotenv>=1.0.0",
+    "icalendar>=6.0.0",
+    "python-dateutil>=2.9.0",
+    "rich>=13.7.0",
+]
+
+[project.optional-dependencies]
+instagram = ["instagrapi>=2.1.0"]
+
+[project.scripts]
+mooch = "mooch.cli:main"
+
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+include = ["mooch*"]

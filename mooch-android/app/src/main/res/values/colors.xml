@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <color name="apple_red">#FFEB4A43</color>
+    <color name="window_background">#FFFDF6ED</color>
+    <!-- Background layer of the adaptive launcher icon: the cream the apple sits on. -->
+    <color name="ic_launcher_background">#FFFDF6ED</color>
+</resources>

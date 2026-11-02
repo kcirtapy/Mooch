@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- A slice, because that is what this app is for. -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+    <path
+        android:fillColor="#16251F"
+        android:pathData="M54,28 L78,74 L30,74 Z" />
+    <path
+        android:fillColor="#AB3A2B"
+        android:pathData="M54,36 L72,71 L36,71 Z" />
+    <path
+        android:fillColor="#E8B23C"
+        android:pathData="M49,50 m-3.5,0 a3.5,3.5 0 1,0 7,0 a3.5,3.5 0 1,0 -7,0" />
+    <path
+        android:fillColor="#E8B23C"
+        android:pathData="M60,62 m-3.5,0 a3.5,3.5 0 1,0 7,0 a3.5,3.5 0 1,0 -7,0" />
+    <path
+        android:fillColor="#E8B23C"
+        android:pathData="M45,64 m-3,0 a3,3 0 1,0 6,0 a3,3 0 1,0 -6,0" />
+</vector>
