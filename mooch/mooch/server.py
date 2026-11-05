@@ -23,7 +23,7 @@ from urllib.parse import parse_qs, urlparse
 
 from .db import Store
 from .models import Hit
-from .pipeline import run_once, window
+from .pipeline import events_to_show, run_once
 
 log = logging.getLogger("mooch.server")
 
@@ -55,12 +55,23 @@ def hit_to_dict(hit: Hit) -> dict:
         "confidence": round(hit.verdict.confidence, 3),
         "reason": hit.verdict.reason,
         "postedAt": _iso(hit.item.posted_at),
+        # Other listings of the same event, merged into this one (dedupe.py).
+        "also": [
+            {
+                "id": other.item.key(),
+                "source": other.item.source,
+                "author": other.item.author,
+                "url": other.item.url,
+                "title": other.name,
+            }
+            for other in hit.also
+        ],
     }
 
 
 def build_feed(cfg, store: Store) -> dict:
-    since, until = window(cfg)
-    hits = store.hits(cfg.confidence_threshold, since, until)
+    # Past events too, so the app can show what already happened.
+    hits = events_to_show(cfg, store, past_days=cfg.history_days)
     return {
         "version": FEED_VERSION,
         "generatedAt": _iso(datetime.now(timezone.utc)),

@@ -82,11 +82,18 @@ class SettingsRepository(private val context: Context) {
         context.dataStore.edit { it[Keys.THEME] = mode.name }
     }
 
-    /** Bookmark or un-bookmark an event. Saved events survive restarts. */
-    suspend fun toggleSaved(id: String) {
+    /**
+     * Bookmark or un-bookmark an event. Saved events survive restarts.
+     *
+     * [ids] is the event's own id, then those of any duplicates merged into it.
+     * The event counts as saved if any of them is, so un-saving clears them all.
+     */
+    suspend fun toggleSaved(ids: List<String>) {
+        if (ids.isEmpty()) return
         context.dataStore.edit { prefs ->
             val current = prefs[Keys.SAVED] ?: emptySet()
-            prefs[Keys.SAVED] = if (id in current) current - id else current + id
+            prefs[Keys.SAVED] =
+                if (ids.any { it in current }) current - ids.toSet() else current + ids.first()
         }
     }
 

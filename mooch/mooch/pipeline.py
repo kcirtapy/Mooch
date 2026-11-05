@@ -26,10 +26,21 @@ def build_sources(cfg, store: Store, only: str | None = None) -> list:
     return sources
 
 
-def window(cfg):
-    """Event start times we care about: just-started through lookahead_days."""
+def window(cfg, past_days: int = 0):
+    """Event start times we care about: from `past_days` back (by default,
+    only events that just started) through lookahead_days."""
     now = datetime.now(timezone.utc)
-    return now - timedelta(hours=3), now + timedelta(days=cfg.lookahead_days)
+    back = timedelta(days=past_days) if past_days > 0 else timedelta(hours=3)
+    return now - back, now + timedelta(days=cfg.lookahead_days)
+
+
+def events_to_show(cfg, store: Store, past_days: int = 0) -> list:
+    """Hits in the window above the confidence floor, with listings of the same
+    event merged into one. The app's feed passes `past_days` to reach back."""
+    from .dedupe import merge_duplicates
+
+    since, until = window(cfg, past_days)
+    return merge_duplicates(store.hits(cfg.confidence_threshold, since, until), cfg.timezone)
 
 
 def run_once(cfg, store: Store) -> dict:

@@ -20,7 +20,7 @@ from datetime import datetime, timedelta, timezone
 
 from . import config as config_mod
 from .db import Store
-from .pipeline import build_sources, run_once, window
+from .pipeline import build_sources, events_to_show, run_once
 
 
 def _log_setup(verbose: bool) -> None:
@@ -155,8 +155,7 @@ def cmd_report(cfg, args) -> int:
 def _emit(cfg, store, open_browser: bool, html: bool = True) -> int:
     from .report import print_table, write_html
 
-    since, until = window(cfg)
-    hits = store.hits(cfg.confidence_threshold, since, until)
+    hits = events_to_show(cfg, store)  # upcoming only; the app's feed also has past events
     print_table(hits, cfg.timezone)
 
     if html:

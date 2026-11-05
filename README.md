@@ -37,6 +37,7 @@ From the `mooch/` folder, with its dependencies installed:
 ```
 python tests/test_jumbolife.py   # calendar feed parsing, using real CampusGroups entries
 python tests/test_instagram.py   # Instagram feed scrolling, against a simulated feed
+python tests/test_dedupe.py      # merging one event's listings from different sources
 python tests/test_dates.py       # "next Monday" and other relative dates
 python tests/test_pipeline.py    # database, screening, server and the app's data contract
 ```

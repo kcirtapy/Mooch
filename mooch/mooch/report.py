@@ -73,11 +73,14 @@ def print_table(hits: list[Hit], tz) -> None:
         what = hit.name
         if hit.verdict.food:
             what += f"\n[dim]{hit.verdict.food}[/dim]"
+        who = hit.item.author or SOURCE_LABEL.get(hit.item.source, hit.item.source)
+        if hit.also:
+            who += f" (+{len(hit.also)} more)"
         table.add_row(
             when_str,
             what,
             hit.where or "—",
-            hit.item.author or SOURCE_LABEL.get(hit.item.source, hit.item.source),
+            who,
             f"{hit.verdict.confidence:.0%}",
         )
 
@@ -145,6 +148,7 @@ a:focus-visible{outline:2px solid var(--butter);outline-offset:3px;border-radius
 .slot .what a:hover{text-decoration-color:var(--ink)}
 .slot .food{color:var(--tomato);font-weight:600}
 .slot .meta{color:var(--soft);font-size:.9rem;margin:0}
+.slot .meta a{color:inherit;text-underline-offset:3px;text-decoration-color:var(--rule)}
 .slot .why{color:var(--soft);font-size:.85rem;margin:.3rem 0 0;opacity:.8}
 
 .undated{border-top:1px solid var(--rule);padding-top:1.4rem}
@@ -254,6 +258,8 @@ def _hero(hit: Hit, tz, now: datetime) -> str:
     detail_bits.append(f"{day} at {clock}")
     if hit.item.author:
         detail_bits.append(html.escape(hit.item.author))
+    if hit.also:
+        detail_bits.append("also " + ", ".join(_also_link(other) for other in hit.also))
     detail = ", ".join(detail_bits)
 
     name = html.escape(hit.name)
@@ -310,6 +316,8 @@ def _slot(hit: Hit, tz, now: datetime, show_time: bool = True) -> str:
         meta.append(html.escape(hit.item.author))
     meta.append(SOURCE_LABEL.get(hit.item.source, hit.item.source))
     meta_str = ", ".join(meta)
+    if hit.also:
+        meta_str += " &middot; also " + ", ".join(_also_link(other) for other in hit.also)
 
     name = html.escape(hit.name)
     if hit.item.url:
@@ -327,3 +335,12 @@ def _slot(hit: Hit, tz, now: datetime, show_time: bool = True) -> str:
         f"<p class='meta'>{meta_str}</p>{why}"
         f"</div></div>"
     )
+
+
+def _also_link(hit: Hit) -> str:
+    """A merged duplicate as "@tuftsvsc (Instagram)", linked to the post when possible."""
+    source = SOURCE_LABEL.get(hit.item.source, hit.item.source)
+    label = html.escape(f"{hit.item.author} ({source})" if hit.item.author else source)
+    if hit.item.url:
+        return f"<a href='{html.escape(hit.item.url)}'>{label}</a>"
+    return label

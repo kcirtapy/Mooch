@@ -35,6 +35,7 @@ Material 3.
 | `data/MoochApi.kt` | OkHttp fetch, offline cache, human-readable error mapping |
 | `data/Settings.kt` | DataStore: server URL, token, toggles, saved events, already-notified IDs |
 | `ui/BottomBar.kt` | Home tab, the round refresh button, Settings tab; on every screen |
+| `ui/CalendarView.kt` | Month grid with a dot on each day that has food; tap a day for its events |
 | `ui/EventListScreen.kt` | Search, All/Saved tabs, event cards, filter and detail sheets, bottom bar |
 | `ui/SettingsScreen.kt` | Connection, alerts, appearance (light/dark), confidence floor |
 | `ui/MainViewModel.kt` | State, refresh, settings mutations |
@@ -52,8 +53,16 @@ time, a countdown, and the place in bold, since that's where you're going.
   Instagram) on and off. A red dot means some are hidden.
 - **All events / Saved.** Tap the bookmark on any card to save it. Saved events
   are kept on the phone and survive restarts.
+- **The calendar button**, at the right of All events / Saved, switches between
+  the list and a month grid with a dot on every day that has food. Tap a day to
+  see its events. Past days keep their dots, dimmed.
+- **Past events** are folded away at the bottom of the list, newest first; tap
+  the heading to open them. The laptop sends the last 30 days (`history_days`
+  in its config).
 - **Tap a card** for the details sheet: full time, place, club, how sure Mooch
   is, and buttons to **add it to your calendar** or open the original post.
+  When an event was posted in several places, the laptop merges them into one
+  card and the sheet lists the other posts under **Also posted by**.
 - **The bottom bar** is on every screen: Home, the round button that checks the
   laptop for new finds, and Settings. Tapping Home while already home jumps back
   to the top of all events. Pulling down on the list also refreshes.

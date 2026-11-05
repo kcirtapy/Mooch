@@ -19,6 +19,7 @@ from mooch import config as C  # noqa: E402
 from mooch.classify import TOOL, Classifier  # noqa: E402
 from mooch.db import Store  # noqa: E402
 from mooch.models import RawItem, Verdict  # noqa: E402
+from mooch.pipeline import events_to_show  # noqa: E402
 from mooch.report import print_table, write_html  # noqa: E402
 from mooch.server import Server, build_feed, export_feed  # noqa: E402
 
@@ -201,5 +202,25 @@ with concurrent.futures.ThreadPoolExecutor(8) as p:
 assert set(codes) == {200}, codes
 srv.httpd.shutdown()
 print("server: auth, both token styles, 404, 16 concurrent reads ok")
+
+# -- past events: in the app's feed, not in the report -----------------------
+assert cfg.history_days == 30
+store.add_items([
+    RawItem(source="instagram", external_id="past-2d", author="@tuftsvsc",
+            text="Pho night Tuesday, free pho!", posted_at=now - timedelta(days=5)),
+    RawItem(source="instagram", external_id="past-45d", author="@tuftsvsc",
+            text="Free cider at the fall fest", posted_at=now - timedelta(days=50)),
+])
+for item_id, item in store.unclassified():
+    days = 2 if item.external_id == "past-2d" else 45
+    store.save_verdict(item_id, Verdict(True, 0.9, "Old event", "pho", now - timedelta(days=days),
+                                        "Dewick", "Free."), "test-model")
+feed_ids = [e["id"] for e in build_feed(cfg, store)["events"]]
+assert "instagram:past-2d" in feed_ids, "a recent past event belongs in the app's feed"
+assert "instagram:past-45d" not in feed_ids, "older than history_days stays out"
+assert feed_ids.index("instagram:past-2d") == 0, "the feed runs oldest first"
+shown = [h.item.external_id for h in events_to_show(cfg, store)]
+assert "past-2d" not in shown and len(shown) == 3, "the report and `mooch list` stay upcoming-only"
+print("past events: last 30 days in the app's feed, kept out of the report")
 
 print("\nALL PIPELINE CHECKS PASSED")

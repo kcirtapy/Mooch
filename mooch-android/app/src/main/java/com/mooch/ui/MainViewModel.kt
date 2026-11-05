@@ -34,13 +34,21 @@ data class UiState(
 ) {
     val filtersActive: Boolean get() = sources.size < ALL_SOURCES.size
 
-    /** What the list shows once search, tab and source filters are applied. */
+    /** Saved events still in the feed. A merged event counts once. */
+    val savedCount: Int get() = feed?.events.orEmpty().count { it.isSavedIn(settings.savedIds) }
+
+    /**
+     * What the list shows once search, tab and source filters are applied. A
+     * merged event matches through any of its listings: it stays visible with
+     * JumboLife switched off if a club also posted it on Instagram.
+     */
     fun visibleEvents(): List<MoochEvent> {
         val q = query.trim().lowercase()
         return feed?.events.orEmpty().filter { e ->
-            (tab == FeedTab.All || e.id in settings.savedIds) &&
-                (e.source in sources || e.source !in ALL_SOURCES) &&
-                (q.isEmpty() || listOfNotNull(e.title, e.food, e.location, e.author)
+            (tab == FeedTab.All || e.isSavedIn(settings.savedIds)) &&
+                e.allSources.any { it in sources || it !in ALL_SOURCES } &&
+                (q.isEmpty() || (listOfNotNull(e.title, e.food, e.location, e.author) +
+                    e.also.flatMap { listOfNotNull(it.author, it.title) })
                     .any { it.lowercase().contains(q) })
         }
     }
@@ -104,7 +112,9 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     fun resetSources() = _state.update { it.copy(sources = ALL_SOURCES.toSet()) }
 
     fun toggleSaved(id: String) {
-        viewModelScope.launch { settingsRepo.toggleSaved(id) }
+        // A merged event may have been saved under one of its duplicates' ids.
+        val ids = _state.value.feed?.events?.firstOrNull { it.id == id }?.allIds ?: listOf(id)
+        viewModelScope.launch { settingsRepo.toggleSaved(ids) }
     }
 
     // -- settings --------------------------------------------------------------

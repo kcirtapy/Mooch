@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import hashlib
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import datetime
 
 
@@ -59,6 +59,8 @@ class Hit:
 
     item: RawItem
     verdict: Verdict
+    # Other listings of the same event, folded into this one by dedupe.py.
+    also: list[Hit] = field(default_factory=list)
 
     @property
     def when(self) -> datetime | None:

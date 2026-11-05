@@ -26,6 +26,7 @@ class Config:
 
     timezone: ZoneInfo = field(default_factory=lambda: ZoneInfo("America/New_York"))
     lookahead_days: int = 14
+    history_days: int = 30  # how far back the app's feed goes
     confidence_threshold: float = 0.55
     data_dir: Path = field(default_factory=lambda: Path.home() / ".mooch")
 
@@ -74,6 +75,7 @@ def load(config_path: str | Path | None = None, env_path: str | Path | None = No
         path=cfg_path,
         timezone=tz,
         lookahead_days=int(raw.get("lookahead_days", 14)),
+        history_days=int(raw.get("history_days", 30)),
         confidence_threshold=float(raw.get("confidence_threshold", 0.55)),
         data_dir=data_dir,
         anthropic_key=os.getenv("ANTHROPIC_API_KEY"),

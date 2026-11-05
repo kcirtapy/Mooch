@@ -6,6 +6,10 @@ timezone: America/New_York
 # Only surface events starting within this many days.
 lookahead_days: 14
 
+# The phone app also shows events from this many days back, under "Past events"
+# and on the calendar. The report and `mooch list` stick to what's coming up.
+history_days: 30
+
 # Drop verdicts the model is less sure about than this (0.0 - 1.0).
 confidence_threshold: 0.55
 

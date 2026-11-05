@@ -100,9 +100,11 @@ class EventRepository(context: Context) {
 
         val relevant = feed.filtered(current.minConfidence)
         val already = settingsRepo.notifiedIds()
+        // A merged event was already announced if any of its listings was, even
+        // when a JumboLife entry that turned up later now leads it under a new id.
         val fresh = relevant.events
-            .filter { !it.isPast() && it.id !in already }
-            .map { it.id }
+            .filter { e -> !e.isPast() && e.allIds.none { it in already } }
+            .flatMap { it.allIds }
             .toSet()
 
         relevant to fresh

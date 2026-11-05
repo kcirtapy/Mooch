@@ -33,9 +33,20 @@ data class MoochEvent(
     val confidence: Double = 0.0,
     val reason: String? = null,
     @SerialName("postedAt") val postedAt: String? = null,
+    /** Other listings of this same event, which the laptop folded into this one. */
+    val also: List<AlsoPosted> = emptyList(),
 ) {
     val start: Instant? get() = parseInstant(startsAt)
     val posted: Instant? get() = parseInstant(postedAt)
+
+    /** This listing's id, then its merged duplicates'. */
+    val allIds: List<String> get() = listOf(id) + also.map { it.id }
+
+    /** Where it was listed: its own source first, then its duplicates'. */
+    val allSources: List<String> get() = listOf(source) + also.map { it.source }
+
+    /** Saved under any of its ids, since the lead listing can change as duplicates arrive. */
+    fun isSavedIn(saved: Set<String>): Boolean = allIds.any { it in saved }
 
     /** Within the next six hours: worth flagging in the list. */
     fun isSoon(now: Instant = Instant.now()): Boolean {
@@ -50,12 +61,7 @@ data class MoochEvent(
     }
 
     val sourceLabel: String
-        get() = when (source) {
-            "instagram" -> "Instagram"
-            "email" -> "Newsletter"
-            "jumbolife" -> "JumboLife"
-            else -> source.replaceFirstChar { it.uppercase() }
-        }
+        get() = sourceLabelFor(source)
 
     /** "Halligan 102, @tuftsacm, Instagram" — whatever we actually know. */
     fun metaLine(): String =
@@ -64,6 +70,25 @@ data class MoochEvent(
             author?.takeIf { it.isNotBlank() },
             sourceLabel,
         ).joinToString(", ")
+}
+
+/** Another listing of an event, like a club's Instagram post of a JumboLife event. */
+@Serializable
+data class AlsoPosted(
+    val id: String,
+    val source: String = "unknown",
+    val author: String? = null,
+    val url: String? = null,
+    val title: String? = null,
+) {
+    val sourceLabel: String get() = sourceLabelFor(source)
+}
+
+fun sourceLabelFor(source: String): String = when (source) {
+    "instagram" -> "Instagram"
+    "email" -> "Newsletter"
+    "jumbolife" -> "JumboLife"
+    else -> source.replaceFirstChar { it.uppercase() }
 }
 
 private fun parseInstant(raw: String?): Instant? {
@@ -78,11 +103,14 @@ private fun parseInstant(raw: String?): Instant? {
 object Fmt {
     private val clock = DateTimeFormatter.ofPattern("h:mm a", Locale.US)
 
-    /** "in 40 min", "in 3 hours", "tomorrow", "in 5 days". */
+    /**
+     * "in 40 min", "in 3 hours", "tomorrow", "in 5 days". Once an event has
+     * started: "happening now" for two hours, then "5 hours ago", "3 days ago".
+     */
     fun relative(start: Instant?, now: Instant = Instant.now()): String {
         if (start == null) return "no date given"
         val seconds = Duration.between(now, start).seconds
-        if (seconds < 0) return "happening now"
+        if (seconds < 0) return ago(-seconds)
         val minutes = seconds / 60
         if (minutes < 60) return "in $minutes min"
         val hours = minutes / 60
@@ -91,16 +119,28 @@ object Fmt {
         return if (days == 1L) "tomorrow" else "in $days days"
     }
 
+    private fun ago(seconds: Long): String {
+        val hours = seconds / 3600
+        val days = hours / 24
+        return when {
+            hours < 2 -> "happening now"
+            hours < 24 -> "$hours hours ago"
+            days == 1L -> "1 day ago"
+            else -> "$days days ago"
+        }
+    }
+
     fun time(start: Instant?, zone: ZoneId): String =
         start?.atZone(zone)?.format(clock)?.lowercase(Locale.US) ?: "—"
 
-    /** Section heading: "Today", "Tomorrow", or "Saturday, September 19". */
+    /** Section heading: "Today", "Tomorrow", "Yesterday", or "Saturday, September 19". */
     fun dayLabel(start: Instant, zone: ZoneId, now: Instant = Instant.now()): String {
         val day = start.atZone(zone).toLocalDate()
         val today = now.atZone(zone).toLocalDate()
         return when (day) {
             today -> "Today"
             today.plusDays(1) -> "Tomorrow"
+            today.minusDays(1) -> "Yesterday"
             else -> "${day.dayOfWeek.getDisplayName(TextStyle.FULL, Locale.US)}, " +
                 "${day.month.getDisplayName(TextStyle.FULL, Locale.US)} ${day.dayOfMonth}"
         }
@@ -143,6 +183,21 @@ fun buildRows(events: List<MoochEvent>, zone: ZoneId, now: Instant = Instant.now
     if (undated.isNotEmpty()) {
         rows.add(Row.Header("No date attached", false))
         undated.sortedByDescending { it.posted }.forEach { rows.add(Row.Event(it)) }
+    }
+    return rows
+}
+
+/** Events that already happened, newest first, under day headings. */
+fun buildPastRows(events: List<MoochEvent>, zone: ZoneId, now: Instant = Instant.now()): List<Row> {
+    val rows = mutableListOf<Row>()
+    var currentDay: LocalDate? = null
+    events.filter { it.start != null }.sortedByDescending { it.start }.forEach { event ->
+        val key = Fmt.dayKey(event.start!!, zone)
+        if (key != currentDay) {
+            rows.add(Row.Header(Fmt.dayLabel(event.start!!, zone, now), false))
+            currentDay = key
+        }
+        rows.add(Row.Event(event))
     }
     return rows
 }

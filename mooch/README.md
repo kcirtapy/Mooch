@@ -17,6 +17,15 @@ Items are deduplicated by source ID and verdicts are cached, so re-running is
 free. When an item's content changes, its verdict is dropped and it gets
 re-screened.
 
+One event often has several listings: the JumboLife entry, the club's
+Instagram post, a reminder post. Before anything is shown, listings of the same
+event are merged into one, led by the most authoritative (JumboLife, then
+newsletters, then Instagram), with the rest listed under `also`. Two listings
+merge when they start on the same day, close together, and come from the same
+club (`@tuftsvsc` matches "Vietnamese Students Club") or name the same room.
+`mooch/dedupe.py` has the exact rules; they lean towards keeping events apart,
+since a wrong merge would hide one.
+
 ## Commands
 
 ```
@@ -43,6 +52,7 @@ mooch -v <cmd>       verbose
 | `mooch/config.py` | Merges `config.yaml` and `.env` into one object |
 | `mooch/db.py` | SQLite: items, cached verdicts, per-source cursors |
 | `mooch/classify.py` | The Claude call and the screening prompt |
+| `mooch/dedupe.py` | Merges listings of the same event from different posts and sources |
 | `mooch/report.py` | Terminal table and the HTML report |
 | `mooch/server.py` | JSON feed, token auth, background scheduler |
 | `mooch/sources/jumbolife.py` | CampusGroups iCalendar parsing |
@@ -85,6 +95,7 @@ only cares about dated future events. `instagrapi` is an optional dependency
 |---|---|---|
 | `timezone` | `America/New_York` | Used for display and for resolving relative dates |
 | `lookahead_days` | `14` | How far ahead the report and feed look |
+| `history_days` | `30` | How far back the app's feed goes, for its past events |
 | `confidence_threshold` | `0.55` | Verdicts below this are hidden |
 | `data_dir` | `~/.mooch` | Database, report, `events.json`, IG session |
 | `anthropic.model` | `claude-haiku-4-5-20251001` | Screening model |
@@ -125,15 +136,32 @@ returns:
       "url": "https://tufts.campusgroups.com/rsvp?id=400001",
       "confidence": 0.94,
       "reason": "Explicitly free.",
-      "postedAt": "2026-09-16T05:26:43Z"
+      "postedAt": "2026-09-16T05:26:43Z",
+      "also": [
+        {
+          "id": "instagram:3471662083",
+          "source": "instagram",
+          "author": "@tasttufts",
+          "url": "https://www.instagram.com/p/abc123/",
+          "title": "TAST Night Market"
+        }
+      ]
     }
   ]
 }
 ```
 
+`also` lists the other listings of the same event that were merged into this
+one; it's empty for most events. The event's own fields come from the lead
+listing, except that the place and the food can come from another listing that
+gives more detail.
+
 Timestamps are UTC with a `Z` suffix and second precision, which is what
 `java.time.Instant.parse` on the Android side accepts directly. `/health` is
-open and unauthenticated. Events sort soonest-first, with undated hits last.
+open and unauthenticated. The feed also carries events from the last
+`history_days`, so the app can show what already happened; events sort by start
+time, oldest first, with undated hits last. The HTML report and `mooch list`
+show only what's coming up.
 
 The token stops someone else on campus wifi reading your feed; it is not real
 security. Don't expose port 8765 to the internet — use Tailscale.

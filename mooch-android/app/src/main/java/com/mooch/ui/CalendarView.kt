@@ -38,6 +38,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import com.mooch.data.MoochEvent
+import java.time.Duration
 import java.time.Instant
 import java.time.LocalDate
 import java.time.YearMonth
@@ -49,8 +50,9 @@ private val monthTitle = DateTimeFormatter.ofPattern("MMMM yyyy", Locale.US)
 private val dayTitle = DateTimeFormatter.ofPattern("EEEE, MMMM d", Locale.US)
 
 /**
- * A month grid with a dot on every day that has free food. Tapping a day lists
- * its events below, as the same cards the list view uses.
+ * A month grid with a dot on every day that has free food, past days included
+ * (their dots and cards are dimmed). Tapping a day lists its events below, as
+ * the same cards the list view uses.
  */
 @Composable
 internal fun CalendarView(
@@ -64,6 +66,7 @@ internal fun CalendarView(
 ) {
     val colors = MaterialTheme.colorScheme
     val today = now.atZone(zone).toLocalDate()
+    val cutoff = now.minus(Duration.ofHours(2))  // same "past" line as the list
     var month by remember { mutableStateOf(YearMonth.from(today)) }
     var selected by remember { mutableStateOf(today) }
 
@@ -128,6 +131,7 @@ internal fun CalendarView(
                                 date = date,
                                 inMonth = YearMonth.from(date) == month,
                                 isToday = date == today,
+                                isPast = date.isBefore(today),
                                 isSelected = date == selected,
                                 count = byDay[date]?.size ?: 0,
                                 onClick = {
@@ -167,9 +171,10 @@ internal fun CalendarView(
                     event = event,
                     zone = zone,
                     now = now,
-                    saved = event.id in savedIds,
+                    saved = event.isSavedIn(savedIds),
                     onClick = { onOpen(event) },
                     onToggleSaved = { onToggleSaved(event.id) },
+                    past = event.start?.isBefore(cutoff) == true,
                 )
             }
         }
@@ -194,6 +199,7 @@ private fun DayCell(
     date: LocalDate,
     inMonth: Boolean,
     isToday: Boolean,
+    isPast: Boolean,
     isSelected: Boolean,
     count: Int,
     onClick: () -> Unit,
@@ -228,7 +234,8 @@ private fun DayCell(
                         else -> colors.onSurface
                     },
                 )
-                // One dot per event, up to three.
+                // One dot per event, up to three; fainter on days that are over.
+                val dot = if (isSelected) colors.onPrimary else colors.primary
                 Row(horizontalArrangement = Arrangement.spacedBy(2.dp), modifier = Modifier.height(6.dp)) {
                     repeat(minOf(count, 3)) {
                         Box(
@@ -236,7 +243,7 @@ private fun DayCell(
                                 .padding(top = 1.dp)
                                 .size(5.dp)
                                 .clip(CircleShape)
-                                .background(if (isSelected) colors.onPrimary else colors.primary),
+                                .background(if (isPast && !isSelected) dot.copy(alpha = 0.45f) else dot),
                         )
                     }
                 }

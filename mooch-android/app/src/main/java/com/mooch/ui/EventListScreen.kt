@@ -40,6 +40,8 @@ import androidx.compose.material.icons.outlined.Close
 import androidx.compose.material.icons.outlined.Event
 import androidx.compose.material.icons.outlined.Groups
 import androidx.compose.material.icons.outlined.Info
+import androidx.compose.material.icons.outlined.KeyboardArrowDown
+import androidx.compose.material.icons.outlined.KeyboardArrowUp
 import androidx.compose.material.icons.outlined.Place
 import androidx.compose.material.icons.outlined.Schedule
 import androidx.compose.material.icons.outlined.Search
@@ -74,6 +76,7 @@ import androidx.compose.material.icons.automirrored.outlined.List
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
@@ -86,10 +89,13 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.mooch.R
+import com.mooch.data.AlsoPosted
 import com.mooch.data.Fmt
 import com.mooch.data.MoochEvent
 import com.mooch.data.Row as FeedRow
+import com.mooch.data.buildPastRows
 import com.mooch.data.buildRows
+import com.mooch.data.sourceLabelFor
 import kotlinx.coroutines.delay
 import java.time.Duration
 import java.time.Instant
@@ -137,10 +143,17 @@ fun EventListScreen(
     // List or month grid. Saveable so it survives rotation and trips to Settings.
     var calendarMode by rememberSaveable { mutableStateOf(false) }
 
+    // Events that started over two hours ago are past: they go in the fold at
+    // the bottom of the list, and the calendar shows them on their days.
     val cutoff = now.minus(Duration.ofHours(2))
-    val visible = state.visibleEvents().filter { e -> e.start?.isAfter(cutoff) ?: true }
+    val matching = state.visibleEvents()
+    val visible = matching.filter { e -> e.start?.isAfter(cutoff) ?: true }
+    val past = matching.filter { e -> e.start?.isAfter(cutoff) == false }
     val rows = remember(visible, now, zone) { buildRows(visible, zone, now) }
+    val pastRows = remember(past, now, zone) { buildPastRows(past, zone, now) }
+    var showPast by rememberSaveable { mutableStateOf(false) }
     val hasAnyEvents = state.feed?.events?.isNotEmpty() == true
+    val hasUpcoming = state.feed?.events?.any { it.start?.isAfter(cutoff) ?: true } == true
 
     Scaffold(
         containerColor = MaterialTheme.colorScheme.background,
@@ -150,7 +163,7 @@ fun EventListScreen(
                 onQuery = onQuery,
                 tab = state.tab,
                 onTab = onTab,
-                savedCount = state.settings.savedIds.size,
+                savedCount = state.savedCount,
                 filtersActive = state.filtersActive,
                 onOpenFilters = { showFilters = true },
                 calendarMode = calendarMode,
@@ -166,7 +179,7 @@ fun EventListScreen(
         ) {
             if (calendarMode) {
                 CalendarView(
-                    events = visible,
+                    events = matching,
                     zone = zone,
                     now = now,
                     savedIds = state.settings.savedIds,
@@ -189,7 +202,8 @@ fun EventListScreen(
                     item(key = "empty") {
                         EmptyState(
                             configured = state.settings.isConfigured,
-                            hasAnyEvents = hasAnyEvents,
+                            hasAnyEvents = hasUpcoming,
+                            hasPast = past.isNotEmpty(),
                             tab = state.tab,
                             onOpenSettings = onOpenSettings,
                             onClear = {
@@ -213,10 +227,38 @@ fun EventListScreen(
                             event = row.event,
                             zone = zone,
                             now = now,
-                            saved = row.event.id in state.settings.savedIds,
+                            saved = row.event.isSavedIn(state.settings.savedIds),
                             onClick = { selected = row.event },
                             onToggleSaved = { onToggleSaved(row.event.id) },
                         )
+                    }
+                }
+
+                // What already happened, newest first, folded away until asked for.
+                if (past.isNotEmpty()) {
+                    item(key = "past-toggle") {
+                        PastToggle(count = past.size, expanded = showPast, onClick = { showPast = !showPast })
+                    }
+                    if (showPast) {
+                        items(pastRows, key = { row ->
+                            when (row) {
+                                is FeedRow.Header -> "past-h-${row.label}"
+                                is FeedRow.Event -> "past-${row.event.id}"
+                            }
+                        }) { row ->
+                            when (row) {
+                                is FeedRow.Header -> DayLabel(row.label, isToday = false)
+                                is FeedRow.Event -> EventCard(
+                                    event = row.event,
+                                    zone = zone,
+                                    now = now,
+                                    saved = row.event.isSavedIn(state.settings.savedIds),
+                                    onClick = { selected = row.event },
+                                    onToggleSaved = { onToggleSaved(row.event.id) },
+                                    past = true,
+                                )
+                            }
+                        }
                     }
                 }
 
@@ -232,9 +274,10 @@ fun EventListScreen(
             event = event,
             zone = zone,
             now = now,
-            saved = event.id in state.settings.savedIds,
+            saved = event.isSavedIn(state.settings.savedIds),
             onToggleSaved = { onToggleSaved(event.id) },
             onOpenUrl = { openUrl(context, event.url) },
+            onOpenLink = { openUrl(context, it) },
             onAddToCalendar = { addToCalendar(context, event) },
             onDismiss = { selected = null },
         )
@@ -386,11 +429,13 @@ internal fun EventCard(
     saved: Boolean,
     onClick: () -> Unit,
     onToggleSaved: () -> Unit,
+    past: Boolean = false,
 ) {
     val colors = MaterialTheme.colorScheme
     Card(
         onClick = onClick,
-        modifier = Modifier.fillMaxWidth(),
+        // Past events stay readable but step back from what's still coming.
+        modifier = Modifier.fillMaxWidth().alpha(if (past) 0.6f else 1f),
         shape = RoundedCornerShape(20.dp),
         colors = CardDefaults.cardColors(containerColor = colors.surface),
         elevation = CardDefaults.cardElevation(defaultElevation = 1.5.dp),
@@ -440,7 +485,7 @@ internal fun EventCard(
                     Text(
                         Fmt.relative(event.start, now),
                         style = MaterialTheme.typography.labelMedium,
-                        color = colors.primary,
+                        color = if (past) colors.onSurfaceVariant else colors.primary,
                     )
                 }
             }
@@ -577,10 +622,16 @@ private fun ErrorBanner(message: String, hasStaleData: Boolean, onOpenSettings: 
     }
 }
 
+/**
+ * Shown when nothing upcoming is listed. [hasAnyEvents] means the feed has
+ * upcoming events that the search or filters are hiding; [hasPast] means the
+ * "Past events" fold below has something in it.
+ */
 @Composable
 private fun EmptyState(
     configured: Boolean,
     hasAnyEvents: Boolean,
+    hasPast: Boolean,
     tab: FeedTab,
     onOpenSettings: () -> Unit,
     onClear: () -> Unit,
@@ -592,14 +643,19 @@ private fun EmptyState(
             "Run serve.bat there, then add the address and token in Settings.",
             "Open settings" to onOpenSettings,
         )
+        tab == FeedTab.Saved && hasPast -> Triple(
+            "Nothing saved coming up",
+            "Saved events that already happened are under Past events.",
+            null,
+        )
         tab == FeedTab.Saved -> Triple(
             "Nothing saved yet",
             "Tap the bookmark on any event to keep it here.",
             null,
         )
         hasAnyEvents -> Triple(
-            "Nothing matches",
-            "Try a different search, or turn more sources back on.",
+            if (hasPast) "Nothing coming up matches" else "Nothing matches",
+            if (hasPast) "Some past events do; they're under Past events." else "Try a different search, or turn more sources back on.",
             "Clear filters" to onClear,
         )
         else -> Triple(
@@ -628,6 +684,32 @@ private fun EmptyState(
     }
 }
 
+/** The "Past events" fold at the bottom of the list. */
+@Composable
+private fun PastToggle(count: Int, expanded: Boolean, onClick: () -> Unit) {
+    val colors = MaterialTheme.colorScheme
+    Row(
+        Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(14.dp))
+            .clickable(onClick = onClick)
+            .padding(start = 4.dp, end = 4.dp, top = 10.dp, bottom = 4.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Text(
+            "Past events · $count",
+            style = MaterialTheme.typography.titleSmall,
+            color = colors.onSurfaceVariant,
+            modifier = Modifier.weight(1f),
+        )
+        Icon(
+            if (expanded) Icons.Outlined.KeyboardArrowUp else Icons.Outlined.KeyboardArrowDown,
+            contentDescription = if (expanded) "Hide past events" else "Show past events",
+            tint = colors.onSurfaceVariant,
+        )
+    }
+}
+
 @Composable
 private fun Footer(generatedAt: String, zone: ZoneId, stale: Boolean) {
     val stamp = runCatching { Fmt.time(Instant.parse(generatedAt), zone) }.getOrDefault("—")
@@ -651,6 +733,7 @@ private fun EventSheet(
     saved: Boolean,
     onToggleSaved: () -> Unit,
     onOpenUrl: () -> Unit,
+    onOpenLink: (String?) -> Unit,
     onAddToCalendar: () -> Unit,
     onDismiss: () -> Unit,
 ) {
@@ -675,10 +758,17 @@ private fun EventSheet(
             InfoRow(Icons.Outlined.Schedule, whenLong(event, zone, now))
             event.location?.takeIf { it.isNotBlank() }?.let { InfoRow(Icons.Outlined.Place, it) }
             event.author?.takeIf { it.isNotBlank() }?.let { InfoRow(Icons.Outlined.Groups, it) }
+            val from = naturalJoin(event.allSources.distinct().map { SOURCE_NAMES[it] ?: sourceLabelFor(it) })
             InfoRow(
                 Icons.Outlined.Info,
-                "From ${SOURCE_NAMES[event.source] ?: event.sourceLabel} · ${(event.confidence * 100).toInt()}% sure it's free",
+                "From $from · ${(event.confidence * 100).toInt()}% sure it's free",
             )
+            // Other posts of this same event, merged into this card by the laptop.
+            if (event.also.isNotEmpty()) {
+                Spacer(Modifier.height(8.dp))
+                Text("Also posted by", style = MaterialTheme.typography.labelMedium, color = colors.onSurfaceVariant)
+                event.also.forEach { other -> AlsoRow(other, onClick = { onOpenLink(other.url) }) }
+            }
 
             if (isUncertain(event)) {
                 Spacer(Modifier.height(6.dp))
@@ -686,7 +776,7 @@ private fun EventSheet(
             }
 
             Spacer(Modifier.height(22.dp))
-            if (event.start != null) {
+            if (event.start != null && !event.isPast(now)) {
                 PillButton("Add to calendar", Icons.Outlined.Event, filled = true, onClick = onAddToCalendar)
                 Spacer(Modifier.height(10.dp))
             }
@@ -767,6 +857,45 @@ private fun InfoRow(icon: ImageVector, text: String) {
     }
 }
 
+/** One more listing of the event: who posted it and where. Tapping opens it. */
+@Composable
+private fun AlsoRow(other: AlsoPosted, onClick: () -> Unit) {
+    val colors = MaterialTheme.colorScheme
+    val hasLink = !other.url.isNullOrBlank()
+    Row(
+        Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(12.dp))
+            .clickable(enabled = hasLink, onClick = onClick)
+            .padding(vertical = 7.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Icon(
+            Icons.AutoMirrored.Outlined.OpenInNew,
+            contentDescription = null,
+            tint = if (hasLink) colors.onSurfaceVariant else colors.outline,
+            modifier = Modifier.size(20.dp),
+        )
+        Spacer(Modifier.width(12.dp))
+        Column(Modifier.weight(1f)) {
+            Text(
+                other.author?.takeIf { it.isNotBlank() } ?: other.sourceLabel,
+                style = MaterialTheme.typography.bodyLarge,
+                color = colors.onSurface,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+            )
+            Text(
+                listOfNotNull(other.sourceLabel, other.title?.takeIf { it.isNotBlank() }).joinToString(" · "),
+                style = MaterialTheme.typography.labelSmall,
+                color = colors.onSurfaceVariant,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+            )
+        }
+    }
+}
+
 @Composable
 private fun PillButton(
     label: String,
@@ -804,6 +933,10 @@ private fun PillButton(
 // -- helpers ------------------------------------------------------------------
 
 private fun isUncertain(e: MoochEvent) = e.confidence < 0.75 && !e.reason.isNullOrBlank()
+
+/** "A", "A and B", "A, B and C". */
+private fun naturalJoin(parts: List<String>): String =
+    if (parts.size <= 1) parts.joinToString() else parts.dropLast(1).joinToString(", ") + " and " + parts.last()
 
 private fun foodLabel(e: MoochEvent): String =
     e.food?.takeIf { it.isNotBlank() }?.replaceFirstChar { it.uppercase() } ?: "Free food"
